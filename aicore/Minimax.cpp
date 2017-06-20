@@ -285,7 +285,12 @@ void TicTacToeState::Show() const
 	{
 		printf(" %d  ",i + 1);
 	}
-	printf("\n   --- --- --- \n");
+	printf("\n   ");
+	for(j = 0 ; j < m_iSize ; j++)
+	{
+		printf("--- ");
+	}
+	printf("\n");
 	for(i = 0 ; i < m_iSize ; i++)
 	{
 		printf("%d ",i + 1);
@@ -306,15 +311,11 @@ void TicTacToeState::Show() const
 			printf("-\n");
 		}
 	}
-	for(j = 1 ; j < m_iSize ; j++)
-	{
-		//printf("+---");
-	}
 			
-	//printf("   --- --- --- \n");
-	for(j = 1 ; j < m_iSize ; j++)
+	printf("   ");
+	for(j = 0 ; j < m_iSize ; j++)
 	{
-		printf("   --- ");
+		printf("--- ");
 	}
 	printf("\n   ");
 	for(i = 0 ; i < m_iSize ; i++)
@@ -461,11 +462,80 @@ bool TicTacToeState::DidSideWin(const int& iWinningSide) const
 	return IsDiagonalWin(iWinningSide);
 }
 
-double MaxValue(State* poState);
-double MinValue(State* poState);
-Action* MiniMaxAction(State* poState);
+class Player
+{
+public:
+	virtual Action* operator()(State* poState) const = 0;
+	Action* GetAction(State* poState) const;
+private:
 
-Action* MiniMaxAction(State* poState)
+protected:
+
+};
+
+class MiniMaxPlayer : public Player
+{
+public:
+	MiniMaxPlayer();
+	MiniMaxPlayer(const MiniMaxPlayer& oPlayer);
+	~MiniMaxPlayer();
+	MiniMaxPlayer& operator=(const MiniMaxPlayer& oPlayer);
+	void Reset();
+	Action* operator()(State* poState) const;
+	
+private:
+
+protected:
+	void Initialize();
+	double MaxValue(State* poState) const;
+	double MinValue(State* poState) const;
+	
+};
+
+class AlphaBetaPlayer : public Player
+{
+public:
+	AlphaBetaPlayer();
+	AlphaBetaPlayer(const AlphaBetaPlayer& oPlayer);
+	~AlphaBetaPlayer();
+	AlphaBetaPlayer& operator=(const AlphaBetaPlayer& oPlayer);
+	void Reset();
+	Action* operator()(State* poState) const;
+	
+private:
+
+protected:
+	void Initialize();
+	double MaxValue(State* poState,double& dAlpha,double& dBeta) const;
+	double MinValue(State* poState,double& dAlpha,double& dBeta) const;
+};
+
+Action* Player::GetAction(State* poState) const
+{
+	return this->operator()(poState);
+}
+
+MiniMaxPlayer::MiniMaxPlayer()
+{
+	Initialize();
+}
+MiniMaxPlayer::MiniMaxPlayer(const MiniMaxPlayer& oPlayer)
+{
+	*this = oPlayer;
+}
+MiniMaxPlayer::~MiniMaxPlayer()
+{
+	Reset();
+}
+MiniMaxPlayer& MiniMaxPlayer::operator=(const MiniMaxPlayer& oPlayer)
+{
+	return *this;
+}
+void MiniMaxPlayer::Reset()
+{
+	Initialize();
+}
+Action* MiniMaxPlayer::operator()(State* poState) const
 {
 	if(poState->IsTerminal())		return 0;
 	std::list<Action*> lpoActions;
@@ -498,8 +568,11 @@ Action* MiniMaxAction(State* poState)
 	lpoActions.clear();
 	return poTargetAction;
 }
+void MiniMaxPlayer::Initialize()
+{
 
-double MaxValue(State* poState)
+}
+double MiniMaxPlayer::MaxValue(State* poState) const
 {
 	if(poState->IsTerminal())		return poState->GetUtility();
 	std::list<Action*> lpoActions;
@@ -521,8 +594,7 @@ double MaxValue(State* poState)
 	}
 	return dMax;
 }
-
-double MinValue(State* poState)
+double MiniMaxPlayer::MinValue(State* poState) const
 {
 	if(poState->IsTerminal())		return poState->GetUtility();
 	std::list<Action*> lpoActions;
@@ -545,6 +617,123 @@ double MinValue(State* poState)
 	return dMin;
 }
 
+AlphaBetaPlayer::AlphaBetaPlayer()
+{
+	Initialize();
+}
+AlphaBetaPlayer::AlphaBetaPlayer(const AlphaBetaPlayer& oPlayer)
+{
+	*this = oPlayer;
+}
+AlphaBetaPlayer::~AlphaBetaPlayer()
+{
+	Reset();
+}
+AlphaBetaPlayer& AlphaBetaPlayer::operator=(const AlphaBetaPlayer& oPlayer)
+{
+	return *this;
+}
+void AlphaBetaPlayer::Reset()
+{
+	Initialize();
+}
+Action* AlphaBetaPlayer::operator()(State* poState) const
+{
+	if(poState->IsTerminal())		return 0;
+	// initialize alpha and beta 
+	double dAlpha = -DBL_MAX;
+	double dBeta = DBL_MAX;
+	std::list<Action*> lpoActions;
+	poState->GetActions(lpoActions);
+	std::list<Action*>::iterator liActions;
+	double dTemp = 0.0;
+	State* poResultState = 0;
+	Action* poTargetAction = 0;
+	bool bMaximize = true;
+	if(poState->GetPlayer() < 0)		bMaximize = false;
+	double dTargetOptimizer = -DBL_MAX;
+	if(!bMaximize)		dTargetOptimizer = DBL_MAX;
+	for(liActions = lpoActions.begin() ; liActions != lpoActions.end() ; liActions++)
+	{
+		poResultState = poState->GetResultState((*liActions));
+		if(bMaximize)		dTemp = MinValue(poResultState,dAlpha,dBeta);
+		else				dTemp = MaxValue(poResultState,dAlpha,dBeta);
+		delete poResultState;
+		if((bMaximize && (dTemp > dTargetOptimizer)) || ((!bMaximize) && (dTemp < dTargetOptimizer)))
+		{
+			dTargetOptimizer = dTemp;
+			poTargetAction = (*liActions);
+		}
+	}
+	// now we the target value action, delete all other actions
+	for(liActions = lpoActions.begin() ; liActions != lpoActions.end() ; liActions++)
+	{
+		if(poTargetAction != (*liActions))		delete (*liActions);
+	}
+	lpoActions.clear();
+	return poTargetAction;
+}
+void AlphaBetaPlayer::Initialize()
+{
+
+}
+double AlphaBetaPlayer::MaxValue(State* poState,double& dAlpha,double& dBeta) const
+{
+	if(poState->IsTerminal())		return poState->GetUtility();
+	std::list<Action*> lpoActions;
+	poState->GetActions(lpoActions);
+	std::list<Action*>::iterator liActions;
+	double dMax = -DBL_MAX;
+	double dTemp = 0.0;
+	State* poResultState = 0;
+	for(liActions = lpoActions.begin() ; liActions != lpoActions.end() ; liActions++)
+	{
+		poResultState = poState->GetResultState((*liActions));
+		dTemp = MinValue(poResultState,dAlpha,dBeta);
+		delete poResultState;
+		if(dTemp > dMax)		dMax = dTemp;
+		// if the max value is already greater than beta, return it, because the calling minimizer would 
+		// never pick it
+		if(dMax > dBeta)		break;
+		// update the alpha value
+		if(dMax > dAlpha)		dAlpha = dMax;
+	}
+	for(liActions = lpoActions.begin() ; liActions != lpoActions.end() ; liActions++)
+	{
+		delete (*liActions);
+	}
+	lpoActions.clear();
+	return dMax;
+}
+double AlphaBetaPlayer::MinValue(State* poState,double& dAlpha,double& dBeta) const
+{
+	if(poState->IsTerminal())		return poState->GetUtility();
+	std::list<Action*> lpoActions;
+	poState->GetActions(lpoActions);
+	std::list<Action*>::iterator liActions;
+	double dMin = DBL_MAX;
+	double dTemp = 0.0;
+	State* poResultState = 0;
+	for(liActions = lpoActions.begin() ; liActions != lpoActions.end() ; liActions++)
+	{
+		poResultState = poState->GetResultState((*liActions));
+		dTemp = MaxValue(poResultState,dAlpha,dBeta);
+		delete poResultState;
+		if(dTemp < dMin)			dMin = dTemp;
+		// if the min value is already less than the alpha, because the calling maximizer would 
+		// never pick it
+		if(dMin < dAlpha)			break;
+		// update the beta value
+		if(dMin < dBeta)			dBeta = dMin;
+	}
+	for(liActions = lpoActions.begin() ; liActions != lpoActions.end() ; liActions++)
+	{
+		delete (*liActions);
+	}
+	lpoActions.clear();
+	return dMin;
+}
+
 int main(int argc,char** argv)
 {
 	if(argc < 2)
@@ -562,6 +751,7 @@ int main(int argc,char** argv)
 	TicTacToeAction* poMyAction;
 	unsigned int iRow = 0;
 	unsigned int iColumn = 0;
+	Player* poPlayer = new AlphaBetaPlayer;
 	while(true)
 	{
 		poState->Show();
@@ -582,7 +772,7 @@ int main(int argc,char** argv)
 		poState->Show();
 		if(poState->IsTerminal())		break;
 		printf("my turn\n");
-		poMyAction = (TicTacToeAction*)(MiniMaxAction(poState));
+		poMyAction = (TicTacToeAction*)(poPlayer->GetAction(poState));
 		poNewState = (TicTacToeState*)(poState->GetResultState(poMyAction));
 		delete poMyAction;
 		delete poState;
@@ -593,6 +783,7 @@ int main(int argc,char** argv)
 	else if(dTerminalStateUtility == -1)		printf("I won\n");
 	else										printf("it is a draw, nice game\n");
 	delete poState;
+	delete poPlayer;
 	return 0;
 }
 
